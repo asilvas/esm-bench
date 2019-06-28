@@ -2,7 +2,7 @@ import plimit from 'p-limit';
 
 const shimport = window.__shimport__;
 
-const ITERATIONS = 1;
+const ITERATIONS = 500;
 const CONCURRENCY = 20;
 const TESTS = [
   createTest('CJS: fetch -> eval -> lodash.js', './lodash.js', testCJS),
@@ -16,9 +16,20 @@ const TESTS = [
 const limit = plimit(CONCURRENCY);
 
 async function runTests() {
+  let test;
   for (let i = 0; i < TESTS.length; i++) {
-    await runTest(TESTS[i]);
+    test = TESTS[i];
+    test.duration = await runTest(test);
   }
+
+  TESTS.sort((a, b) => a.duration < b.duration ? -1 : 1);
+
+  let slower;
+  const fastest = TESTS[0];
+  TESTS.forEach(({name, duration}, i) => {
+    slower = i ? `, ${((1 - (fastest.duration / duration))*100).toFixed(2)}% slower than [${fastest.name}]` : '';
+    console.log(`[${name}] took ${duration}ms${slower}`);
+  });
 }
 
 function createTest(name, url, fn) {
@@ -36,7 +47,8 @@ async function runTest({ name, url, fn }) {
   const start = Date.now();
   await Promise.all(tasks);
   const timeElapsed = Date.now() - start;
-  console.log(`[${name}] took ${timeElapsed}ms`);
+
+  return timeElapsed;
 }
 
 async function testCJS(url) {
